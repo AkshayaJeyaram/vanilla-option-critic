@@ -26,9 +26,9 @@ option_critic_dissertation/
 ## Option-Critic Overview
 
 The Option-Critic (OC) architecture enables temporal abstraction by learning:
-- Intra-option policies \( \pi(a \mid s, o) \)
-- Termination probabilities \( \beta(s, o) \)
-- Option-value functions \( Q(s, o) \)
+- Intra-option policies
+- Termination probabilities
+- Option-value functions
 
 This codebase supports both MLP (for gridworld) and CNN (for image-based tasks) variants.
 
