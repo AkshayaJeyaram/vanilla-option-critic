@@ -1,3 +1,4 @@
+# utils/logging_utils.py
 import os
 import csv
 import time
@@ -17,8 +18,9 @@ class Logger:
         self.metric_fields = ["steps", "actor_loss", "critic_loss", "entropy", "epsilon"]
         self.metrics_file = os.path.join(self.logdir, "training_metrics.csv")
         self.log_file = os.path.join(self.logdir, "session_log.log")
-        self.recent_rewards = deque(maxlen=100)  # Track recent rewards for average
+        self.recent_rewards = deque(maxlen=100)
 
+        # initialize empty file with header
         with open(self.metrics_file, "w", newline="") as csvfile:
             writer = csv.DictWriter(csvfile, fieldnames=self.metric_fields)
             writer.writeheader()
@@ -26,14 +28,49 @@ class Logger:
         with open(self.log_file, "w") as logf:
             logf.write(f"=== Logging initiated at {time.ctime()} ===\n")
 
-    def log_data(self, steps, actor_loss, critic_loss, entropy, epsilon):
+    def _rewrite_with_new_fields(self, new_fields):
+        """If new columns appear, rewrite CSV header once to include them."""
+        # read all existing rows
+        with open(self.metrics_file, "r", newline="") as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+
+        # extend fields
+        for k in new_fields:
+            if k not in self.metric_fields:
+                self.metric_fields.append(k)
+
+        # rewrite file with new header and backfilled rows
+        with open(self.metrics_file, "w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=self.metric_fields)
+            writer.writeheader()
+            for r in rows:
+                # ensure all keys exist
+                for k in self.metric_fields:
+                    r.setdefault(k, None)
+                writer.writerow(r)
+
+    def log_data(self, steps, actor_loss, critic_loss, entropy, epsilon, **extra):
+        # if new keys appear, upgrade the CSV header first
+        new_cols = [k for k in extra.keys() if k not in self.metric_fields]
+        if new_cols:
+            self._rewrite_with_new_fields(new_cols)
+
+        def as_num(x):
+            try:
+                return x.item()
+            except Exception:
+                return x
+
         entry = {
             "steps": steps,
-            "actor_loss": actor_loss.item() if actor_loss is not None else None,
-            "critic_loss": critic_loss.item() if critic_loss is not None else None,
-            "entropy": entropy,
-            "epsilon": epsilon,
+            "actor_loss": as_num(actor_loss) if actor_loss is not None else None,
+            "critic_loss": as_num(critic_loss) if critic_loss is not None else None,
+            "entropy": as_num(entropy) if entropy is not None else None,
+            "epsilon": as_num(epsilon) if epsilon is not None else None,
         }
+        entry.update(extra)
+
         with open(self.metrics_file, "a", newline="") as csvfile:
             writer = csv.DictWriter(csvfile, fieldnames=self.metric_fields)
             writer.writerow(entry)

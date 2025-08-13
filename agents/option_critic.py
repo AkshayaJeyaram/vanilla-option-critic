@@ -42,9 +42,26 @@ class OptionCriticMLP(nn.Module):
         self.train(not eval_mode)
 
     def extract_features(self, obs):
-        if obs.ndim < 4:
+    # obs: torch.Tensor expected
+        obs = obs.to(self.device)
+        if obs.dim() == 1:
+            # single (D,) -> (1, D)
             obs = obs.unsqueeze(0)
-        return self.feature_extractor(obs.to(self.device))
+        elif obs.dim() > 2:
+            # e.g., accidentally passed (1, B, D) -> squeeze leading singleton
+            obs = obs.squeeze(0)
+        return self.feature_extractor(obs)
+    
+    def select_option_epsilon_greedy(self, features):
+        if torch.rand(()) < self.epsilon:
+            return int(torch.randint(0, self.num_options, ()).item())
+        return int(self.compute_Q_values(features).argmax(dim=-1).item())
+    
+    def current_epsilon(self):
+        # same formula without incrementing step_count
+        if self.eval_mode:
+            return self.eps_test
+        return self.eps_min + (self.eps_start - self.eps_min) * exp(-self.step_count / self.eps_decay)
 
     def compute_Q_values(self, features):
         return self.q_head(features)
@@ -54,7 +71,9 @@ class OptionCriticMLP(nn.Module):
 
     def should_terminate(self, features, current_option):
         beta = self.termination_head(features)[:, current_option].sigmoid()
-        terminate = Bernoulli(beta).sample()
+        # Clamp only for sampling stability; do NOT clamp in loss computations
+        beta_clamped = beta.clamp(1e-4, 1 - 1e-4)
+        terminate = Bernoulli(beta_clamped).sample()
         next_option = self.compute_Q_values(features).argmax(dim=-1)
         return bool(terminate.item()), next_option.item()
 
@@ -117,9 +136,26 @@ class OptionCriticCNN(nn.Module):
         self.train(not eval_mode)
 
     def extract_features(self, obs):
-        if obs.ndim < 4:
+        obs = obs.to(self.device)
+        if obs.dim() == 3:
+            # single (C, H, W) -> (1, C, H, W)
             obs = obs.unsqueeze(0)
-        return self.feature_extractor(obs.to(self.device))
+        elif obs.dim() == 5 and obs.size(0) == 1:
+            # e.g., (1, B, C, H, W) -> (B, C, H, W)
+            obs = obs.squeeze(0)
+        # if obs.dim() == 4: already (B, C, H, W) -> fine
+        return self.feature_extractor(obs)
+
+    def select_option_epsilon_greedy(self, features):
+        if torch.rand(()) < self.epsilon:
+            return int(torch.randint(0, self.num_options, ()).item())
+        return int(self.compute_Q_values(features).argmax(dim=-1).item())
+    
+    def current_epsilon(self):
+        # same formula without incrementing step_count
+        if self.eval_mode:
+            return self.eps_test
+        return self.eps_min + (self.eps_start - self.eps_min) * exp(-self.step_count / self.eps_decay)
 
     def compute_Q_values(self, features):
         return self.q_head(features)
@@ -129,7 +165,9 @@ class OptionCriticCNN(nn.Module):
 
     def should_terminate(self, features, current_option):
         beta = self.termination_head(features)[:, current_option].sigmoid()
-        terminate = Bernoulli(beta).sample()
+        # Clamp only for sampling stability; do NOT clamp in loss computations
+        beta_clamped = beta.clamp(1e-4, 1 - 1e-4)
+        terminate = Bernoulli(beta_clamped).sample()
         next_option = self.compute_Q_values(features).argmax(dim=-1)
         return bool(terminate.item()), next_option.item()
 

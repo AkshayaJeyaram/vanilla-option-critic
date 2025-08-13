@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.pyc
+
+# Logs, runs, artifacts
+runs/
+ppo_logs/
+dqn_logs/
+graphs/
+models/
+*.pth
+*.pt
+
+# OS/IDE
+.DS_Store
+.vscode/
+.idea/
