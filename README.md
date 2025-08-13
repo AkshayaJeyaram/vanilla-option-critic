@@ -7,18 +7,72 @@ This repository contains a PyTorch implementation of the **Option-Critic** archi
 ## Project Structure
 
 ```
-option_critic_dissertation/
-├── agents/                # Option-Critic agent definitions (MLP and CNN)
-├── buffers/               # Experience replay buffer
-├── envs/                  # Custom Four Rooms environment
-├── learners/              # Gradient computation for actor & critic
-├── train/                 # Main training scripts
-├── utils/                 # Environment setup and logging
-├── visuals.py             # Plotting reward curves and metrics
-├── dqn_agent.py           # DQN baseline agent
-├── dqn_baseline.py        # DQN training script
-├── ppo_baseline.py        # PPO training script
-└── README.md              # (You're here)
+vanilla-option-critic/
+├── README.md
+├── requirements.txt
+│
+├── agents/
+│   ├── __init__.py
+│   └── option_critic.py
+│
+├── buffers/
+│   ├── __init__.py
+│   └── experience_buffer.py
+│
+├── learners/
+│   ├── __init__.py
+│   └── gradients.py
+│
+├── utils/
+│   ├── __init__.py
+│   ├── environment_utils.py
+│   └── logging_utils.py
+│
+├── envs/
+│   ├── __init__.py
+│   └── four_rooms_env.py
+│
+├── train/
+│   ├── __init__.py
+│   └── train_option_critic.py
+│
+├── models/
+│   ├── vanilla_oc_fourrooms_seed0_ep1000.pth
+│   ├── vanilla_oc_fourrooms_seed0_ep2000.pth
+│   └── vanilla_oc_fourrooms_seed0_ep4000.pth
+│
+├── graphs/
+│   ├── comparison_reward_curve.png
+│   ├── comparison_reward_curve_all.png
+│   ├── entropy_curve.png
+│   ├── loss_curves.png
+│   ├── option_frequency.png
+│   ├── option_lengths.png
+│   ├── reward_curve.png
+│   └── termination_probs.png
+│
+├── documents/
+│   └── Temporary Writeup.pdf
+│
+├── runs/
+│   ├── PPO-fourrooms/
+│   │   └── training_metrics.csv
+│   └── OptionCriticMLP-fourrooms-default/
+│       ├── logger.log
+│       ├── session_log.log
+│       └── training_metrics.csv
+│
+├── dqn_logs/
+│   └── fourrooms_rewards.csv
+│
+├── ppo_logs/
+│   └── fourrooms_rewards.csv
+│
+├── dqn_agent.py
+├── dqn_baseline.py
+├── ppo_baseline.py
+├── visuals.py
+
 ```
 
 ---
