@@ -11,6 +11,7 @@ from learners.gradients import compute_actor_gradient, compute_critic_gradient
 from utils.environment_utils import make_env, to_tensor
 from utils.logging_utils import Logger
 
+
 def train(args):
     env, is_atari = make_env(args.env)
     device = torch.device("cuda" if args.cuda and torch.cuda.is_available() else "cpu")
@@ -48,7 +49,9 @@ def train(args):
         obs = env.reset()
         state = agent.extract_features(to_tensor(obs))
         greedy_option = agent.select_greedy_option(state)
-        current_option = 0
+        # initial option selection via ε-greedy
+        current_option = agent.select_option_epsilon_greedy(state)
+
         option_lengths = {opt: [] for opt in range(args.num_options)}
 
         if args.switch_goal and logger.episode_count == 1000:
@@ -72,18 +75,15 @@ def train(args):
         entropy = torch.tensor(0.0)
 
         while not done and ep_steps < args.max_steps_ep:
+            # cache epsilon ONCE per step (don’t call again this iteration)
             epsilon = agent.epsilon
+
+            # ε-greedy option switching when terminated AND min duration satisfied
             if option_terminated:
                 if curr_op_len >= min_option_duration:
                     option_lengths[current_option].append(curr_op_len)
-                    current_option = (
-                        np.random.choice(args.num_options)
-                        if np.random.rand() < epsilon
-                        else greedy_option
-                    )
+                    current_option = agent.select_option_epsilon_greedy(state)
                     curr_op_len = 0
-                else:
-                    logger.log_data(total_steps, actor_loss, critic_loss, entropy.item(), epsilon)
 
             action, logp, entropy = agent.sample_action(state, current_option)
             next_obs, reward, done, _ = env.step(action)
@@ -105,6 +105,8 @@ def train(args):
 
                 optimizer.zero_grad()
                 loss.backward()
+                # ✅ gradient clipping for stability
+                torch.nn.utils.clip_grad_norm_(agent.parameters(), max_norm=1.0)
                 optimizer.step()
 
                 if total_steps % args.target_update_freq == 0:
@@ -118,7 +120,21 @@ def train(args):
             curr_op_len += 1
             obs = next_obs
 
-            logger.log_data(total_steps, actor_loss, critic_loss, entropy.item(), epsilon)
+            # compute beta_* for logging (use current state's β)
+            with torch.no_grad():
+                term_probs_now = agent.predict_termination_probs(state)  # (1, num_options)
+            beta_log = {f"beta_{i}": float(term_probs_now[0, i].item()) for i in range(args.num_options)}
+
+            # single logger.log_data call at END of step with float entropy + beta_*
+            ent_val = float(entropy.item()) if hasattr(entropy, "item") else float(entropy)
+            logger.log_data(
+                total_steps,
+                actor_loss,               # None on steps without updates is fine
+                critic_loss,              # None on non-update steps is fine
+                ent_val,
+                epsilon,                  # cached; avoid calling agent.epsilon again
+                **beta_log
+            )
 
         logger.log_episode(total_steps, rewards, option_lengths, ep_steps, epsilon)
 
@@ -151,6 +167,8 @@ if __name__ == "__main__":
     parser.add_argument("--entropy-reg", type=float, default=0.015, help="Coefficient for entropy regularization")
     parser.add_argument("--entropy-decay", type=float, default=8e4, help="Exponential decay factor for entropy weight")
     parser.add_argument("--min-option-duration", type=int, default=3, help="Minimum number of steps before option can switch")
+    parser.add_argument("--beta-entropy-coeff", type=float, default=0.0,
+                        help="Entropy regularization on beta to prevent saturation (0 disables)")
 
     # Training control
     parser.add_argument("--max-steps-ep", type=int, default=16000, help="Maximum steps per episode")

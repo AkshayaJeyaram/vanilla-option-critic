@@ -6,20 +6,26 @@ import numpy as np
 
 os.makedirs("graphs", exist_ok=True)
 
-# ========== Smoothed Reward Curve ==========
 def extract_rewards(log_path):
     rewards = []
     with open(log_path, 'r') as f:
         for line in f:
-            if "ep " in line and "reward=" in line:
-                parts = line.strip().split("|")
-                for part in parts:
-                    if "reward=" in part:
-                        try:
-                            reward = float(part.strip().split("=")[1])
-                            rewards.append(reward)
-                        except ValueError:
-                            continue
+            # Accept both "Reward: 1.00" and "reward=1.00"
+            if "Reward:" in line:
+                try:
+                    # ... | Reward: 1.00 | ...
+                    seg = [p for p in line.split("|") if "Reward" in p][0]
+                    reward = float(seg.split(":")[1].strip())
+                    rewards.append(reward)
+                except Exception:
+                    pass
+            elif "reward=" in line:
+                try:
+                    seg = [p for p in line.split("|") if "reward=" in p][0]
+                    reward = float(seg.split("=")[1].strip())
+                    rewards.append(reward)
+                except Exception:
+                    pass
     return rewards
 
 def smooth(data, window=100):
@@ -199,6 +205,6 @@ if __name__ == "__main__":
         plot_comparison_curve()
     else:
         if not ppo_exists:
-            print("⚠️ Missing PPO log: ppo_logs/fourrooms_rewards.csv")
+            print("Missing PPO log: ppo_logs/fourrooms_rewards.csv")
         if not dqn_exists:
-            print("⚠️ Missing DQN log: dqn_logs/fourrooms_rewards.csv")
+            print("Missing DQN log: dqn_logs/fourrooms_rewards.csv")
